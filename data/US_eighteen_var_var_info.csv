@@ -1,0 +1,22 @@
+Variable,Type,Categories,Missing_Value,Left_Right_Side,Left_Label,Right_Label,Left_Right_Approach
+SVAD_identifier,other,,,,,,
+SEX,other,,,,,,
+agey,x,,-1,,,,
+max_M1,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+max_M2,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+max_PM2,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+man_M1,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+man_M2,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+man_PM1,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+man_C,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+FGT_EF,ordinal,0 1 12 2 23 3 4,-1,end,_L,_R,highest
+HME_EF,ordinal,0 1 12 2 23 3 4,-1,end,_L,_R,highest
+RPE_EF,ordinal,0 1 12 2 23 3 4,-1,end,_L,_R,highest
+UDE_EF,ordinal,0 1 12 2 23 3 4,-1,end,_L,_R,highest
+CC_Oss,ordinal,0 1 2 3 4 5 6 7 8,-1,,,,
+ISPR_EF,ordinal,0 1 2 ,-1,end,_L,_R,highest
+ILIS_EF,ordinal,0 1 2 ,-1,end,_L,_R,highest
+FDL,continuous,,-1,end,_L,_R,left
+TPB,continuous,,-1,end,_L,_R,left
+HDL,continuous,,-1,end,_L,_R,left
+HPB,continuous,,-1,end,_L,_R,left

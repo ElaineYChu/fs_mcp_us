@@ -1,0 +1,17 @@
+Variable,Type,Categories,Missing_Value,Left_Right_Side,Left_Label,Right_Label,Left_Right_Approach
+SVAD_identifier,other,,,,,,
+SEX,other,,,,,,
+agey,x,,-1,,,,
+FH_EF,ordinal,0 1 12 2 23 3 4,-1,end,_L,_R,highest
+FDE_EF,ordinal,0 1 12 2 23 3 4,-1,end,_L,_R,highest
+TPE_EF,ordinal,0 1 12 2 23 3 4,-1,end,_L,_R,highest
+TDE_EF,ordinal,0 1 12 2 23 3 4,-1,end,_L,_R,highest
+FBPE_EF,ordinal,0 1 12 2 23 3 4,-1,end,_L,_R,highest
+FBDE_EF,ordinal,0 1 12 2 23 3 4,-1,end,_L,_R,highest
+HH_Oss,ordinal,0 1,-1,end,_L,_R,highest
+HPE_EF,ordinal,0 1 12 2 23 3 4,-1,end,_L,_R,highest
+HDE_EF,ordinal,0 1 12 2 23 3 4,-1,end,_L,_R,highest
+RPE_EF,ordinal,0 1 12 2 23 3 4,-1,end,_L,_R,highest
+RDE_EF,ordinal,0 1 12 2 23 3 4,-1,end,_L,_R,highest
+UPE_EF,ordinal,0 1 12 2 23 3 4,-1,end,_L,_R,highest
+UDE_EF,ordinal,0 1 12 2 23 3 4,-1,end,_L,_R,highest

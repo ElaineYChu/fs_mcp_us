@@ -1,0 +1,20 @@
+Variable,Type,Categories,Missing_Value,Left_Right_Side,Left_Label,Right_Label,Left_Right_Approach
+SVAD_identifier,other,,,,,,
+SEX,other,,,,,,
+agey,x,,-1,,,,
+max_M1,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+max_M2,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+max_M3,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+max_PM1,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+max_PM2,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+max_C,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+max_I1,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+max_I2,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+man_M1,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+man_M2,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+man_M3,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+man_PM1,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+man_PM2,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+man_C,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+man_I1,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest
+man_I2,ordinal,1 2 3 4 5 6 7 8 9 10 11 {12 13},-1,end,_L,_R,highest

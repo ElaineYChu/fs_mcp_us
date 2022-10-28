@@ -1,0 +1,1111 @@
+---
+title: "Forensic Science MCP US Visualizations"
+author: "Kyra E Stull, Elaine Y Chu"
+date: "`r Sys.Date()`"
+output:
+  prettydoc::html_pretty:
+    theme: tactile
+    toc: true
+    toc-float: true
+editor_options: 
+  chunk_output_type: console
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, fig.path = 'figures/', dpi=300, 
+                      message = FALSE, warning=FALSE, 
+                      fig.height = 12, fig.width = 14, fig.ext="tiff")
+```
+
+# Introduction
+This RMarkdown / HTML file is provided as an exact demonstration of figure creation for the manuscript (journal assigned ID: forensicsci-1982685):
+
+> Stull et al. 2023 -- Subadult Age Estimation using the Mixed Cumulative Probit
+and a Contemporary United States Population. Forensic Sciences. Special Issue:
+Estimating Age in Forensic Anthropology. Special Issue editors: Dr. Kanya Godde
+and Dr. Rebecca Taylor.
+
+# Setup
+This chunk of code sets up your R Environment up for success by:  
+1. Clearing the global environment of any residual objects  
+2. Loading pertinent libraries used in the subsequent script  
+
+Note: Do not forget to set the folder *fs_mcp_us* as your working directory!
+
+Within the *fs_mcp_us* folder should be the following sub-folders that hold all 1) data and 2) resulting files for univariate and multivariate model optimization needed to generate all of the subsequent results and tables provided in the manuscript, and 3) ordinal credible interval tables and model test predictions:  
+
+* /ci-tables  
+* /data  
+* /results_dent  
+* /results_ef_oss_c  
+* /results_eighteen_var  
+* /results_eighteen_var_c  
+* /results_lb  
+* /results_prox_dist  
+* /results_prox_dist_c  
+* /results_univariate  
+* /test-predictions  
+
+```{r setup2}
+# Clear global environment
+rm(list=ls())
+
+# Load libraries
+library(tidyverse)
+library(magrittr)
+library(ggpubr)
+library(yada)
+library(doParallel)
+
+# Don't forget to set your working directory!
+
+```
+
+This publication uses a slew of specified figure specifications to standardize figure appearance, color theme, and axis labels, as such: 
+
+```{r figure-specs}
+mytheme <- theme_minimal() +
+  theme(legend.title=element_text(size=18), legend.text=element_text(size=16),
+        legend.position="top", axis.title=element_text(size=24), 
+        axis.text=element_text(size=20), strip.text=element_text(size=20),
+        panel.background=element_rect(fill=NA))
+
+npg_pal <- c("#e64b35ff","#4dbbd5ff","#00a087ff","#3c5488ff",
+             "#f39b7fff","#8491b4ff","#91d1c2ff","#b09c85ff")
+
+age_lab <- "Age (years)"
+```
+
+
+
+
+# Figure 1 – Data Availability
+Data for Figure 1 and Figure 2 are the reformatted training and testing samples generated through the *MCP Vignette*. The original, full dataset is provided in the *data* folder as *SVAD_US.csv* and the function `caret::createDataPartition` was used to separate the data into a 75% training and 25% testing set with equal proportion of sexes between the two, and the `set.seed()` defined as as 719921. The full code for this process is provided as the script `train-test.R`.
+
+Note: The following individuals were removed from the test sample and figures because they were subsequently identified as typo-outliers after analyses were run:  
+SVAD_identifier %in% c("US_0028","US_0390","US_0856","US_0914")  
+
+```{r data-missing_df}
+train <- read.csv("data/SVAD_US_train_reformatted.csv")
+train$model <- "Training"
+
+test <- read.csv("data/SVAD_US_test_reformatted.csv")
+test$model <- "Testing"
+test %<>% filter(SVAD_identifier != "US_0028", SVAD_identifier != "US_390")
+# NOTE: The above individuals were identified as typo-outliers and were 
+# removed from analyses and visualizations
+
+# Combine training and testing data into a single data frame
+data <- rbind(test, train)
+data$age_int <- as.integer(data$agey)
+data$model <- factor(data$model, levels=c("Training","Testing"))
+
+# Identify unique single-year age cohorts, initialize empty data frame, 
+# and add column names
+age_vec <- sort(unique(data$age_int))
+missing_df <- data.frame(matrix(nrow=length(age_vec), ncol=62))
+names(missing_df) <- names(data %>% select(FDL:IC_EF))
+
+# Loop through each single-year chronological age and calculate the proportion
+# of available data for that age by age indicator, store in missing_df
+for(i in age_vec) {
+     sub <- data %>% filter(age_int==i)
+     
+     for(j in names(missing_df)) {
+          N <- nrow(sub[j])
+          prp <- length(which(is.na(sub[j])))/N
+          missing_df[i+1,j] <- 1-prp
+     }
+}
+
+# Add single-year chronological age cohorts as a column
+missing_df <- cbind(age_int=age_vec, missing_df)
+```
+
+```{r fig-1, fig.height=30}
+# Reshape missing_df for plotting, add new column defining variable type
+fig1 <- missing_df %>% 
+     gather(key="var",value="value",-age_int)
+fig1$type <- ifelse(grepl("man|max",fig1$var), "dent",
+                    ifelse(grepl("EF|Oss",fig1$var), "ef","lb"))
+fig1$var <- factor(fig1$var, levels=names(missing_df))
+fig1$type <- factor(fig1$type, levels=c("lb","ef","dent"))
+
+# Plot
+ggplot(fig1) + mytheme + 
+     geom_tile(aes(x=age_int, y=var, fill=value*100), color="black") + 
+     theme(legend.position="right", strip.text=element_blank(),
+           panel.border=element_rect(fill=NA),
+           panel.spacing.y=unit(0.75,"lines")) + 
+     facet_grid(type~., scales="free") + 
+     labs(x=age_lab, y="Variable", fill="% Available") + 
+     scale_x_continuous(breaks=0:21, expand=c(0,0)) + 
+     scale_y_discrete(limits=rev, expand=c(0,0)) + 
+     scale_fill_gradientn(colors=c("#014f86","#90be6d","#ffea00",
+                                   "#f8961e","#f94144"))
+
+```
+
+# Figure 2 – Age and sex distributions of the sample separated by the training and testing subsets.
+
+```{r fig-2, fig.width=8, fig.height=10}
+data %>% 
+  ggplot() + geom_histogram(aes(x=agey, alpha=SEX), position="dodge") + 
+  facet_grid(model ~ .) + scale_alpha_manual(values=c(0.9,0.5)) + 
+  labs(y="Count", x=age_lab, alpha="Sex") + mytheme + 
+  scale_x_continuous(limits=c(0,20))
+```
+
+# Figure 5 – Parameter specifications selected for all univariate models and visualized by indicator type.
+Data for Figure 5 and Figure 6 use the results of `get_best_univariate_params()`, stored in the *results_univariate* folder as "US_all_c_univariate_model_parameters.rds")
+
+```{r sum_df}
+# Import results of get_best_univariate_params()
+params <- readRDS("results_univariate/US_all_c_univariate_model_parameters.rds")
+
+# Restructure into new data frame and separate by variable type
+var_vec <- unique(params$var)
+mod_specs <- params %>% select(var, mean_spec, noise_spec) %>% unique()
+mod_specs %<>% mutate(ind_type=ifelse(grepl("man_|max_",var), 
+                                      "Dental Development",
+                      ifelse(grepl("_EF",var), "Epiphyseal Fusion",
+                      ifelse(grepl("_Oss",var), "Ossification", 
+                             "Diaphyseal Dimension"))))
+mod_specs$mean_spec <- car::recode(mod_specs$mean_spec,
+                                   "'lin_ord'='Linear';
+                                   'log_ord'='Logarithmic';
+                                   c('pow_law_ord','pow_law')='Power Law'")
+mod_specs$noise_spec <- car::recode(mod_specs$noise_spec,
+                                    "'const'='Homoskedastic';
+                                    'lin_pos_int'='Heteroskedastic'")
+mod_specs %<>% mutate(specs=paste(mean_spec, noise_spec, sep=" "))
+mod_specs$specs <- factor(mod_specs$specs, 
+                          levels=c("Linear Homoskedastic",
+                                   "Linear Heteroskedastic",
+                                   "Logarithmic Homoskedastic",
+                                   "Logarithmic Heteroskedastic",
+                                   "Power Law Homoskedastic",
+                                   "Power Law Heteroskedastic"))
+
+# Restructure for counts by model specification types
+sum_df <- mod_specs %>% group_by(ind_type,mean_spec,noise_spec) %>%
+  summarize(count=n())
+sum_df$ind_type <- factor(sum_df$ind_type, levels=c("Dental Development",
+                                                    "Epiphyseal Fusion",
+                                                    "Ossification",
+                                                    "Diaphyseal Dimension"))
+sum_df$noise_spec <- factor(sum_df$noise_spec, 
+                            levels=c("Homoskedastic", "Heteroskedastic"))
+
+```
+
+```{r fig-5}
+ggplot(sum_df, aes(x=noise_spec, y=mean_spec)) + 
+  geom_point(aes(size=count, color=ind_type), 
+             position=position_dodge2(0.5), pch=19) + 
+  geom_text(aes(label=count, group=ind_type), 
+            position=position_dodge2(0.5), size=10) + 
+  mytheme + scale_size(guide="none") + 
+  labs(x="Noise Specification", y="Mean Specification", 
+       color="Indicator Type") + 
+  scale_color_manual(values=npg_pal[1:4]) + 
+  scale_size(range=c(10,25)) +
+  guides(color=guide_legend(override.aes = list(size=3)), size="none")
+
+```
+
+# Figure 6 – Parameter specifications per variable, separated by indicator type.
+
+```{r fig-6, fig.height=16, fig.width=20}
+ggplot(mod_specs, aes(x=specs, y=var, color=ind_type)) + 
+  geom_point(pch=19, size=5) + mytheme + 
+  facet_wrap(vars(ind_type), scales="free") + 
+  scale_color_manual(values=npg_pal[1:4]) + 
+  scale_x_discrete(breaks=levels(mod_specs$specs), 
+    labels=c("Linear \n Homoskedastic", "Linear \n Heteroskedastic", 
+                        "Logarithmic \n Homoskedastic", "Logarithmic \n Heteroskedastic",
+                        "Power Law \n Homoskedastic", "Power Law \n Heteroskedastic")) + 
+  theme(axis.text.x=element_text(angle=35, hjust=1), 
+        legend.position="none",
+        strip.background=element_rect(fill="grey85")) + 
+  labs(x="Mean and Noise Specifications", y="Variable")
+  
+  
+```
+
+# Figure 7 –  Univariate Residuals (left) and Absolute Residuals (right), Univariate High Accuracy and Low TMNLP.
+
+Univariate model test predictions are used in Figure 7, Figure 8, Figure 15, and Figure 17 to demonstrate differences between variable type and age estimation using the MCP. These test predictions are housed in the *test-predictions* folder and were produced using `univariate_batch_calc()`. 
+
+```{r uni_models}
+rdl <- read_csv("test-predictions/RDL_US_all_c_test_predictions.csv")
+rdl$model <- "Radius Length"
+rdl$resid <- rdl$agey - rdl$xmean
+rdl$abs_resid <- abs(rdl$agey - rdl$xmean)
+
+pc_oss <- read_csv("test-predictions/PC_Oss_US_all_c_test_predictions.csv")
+pc_oss$model <- "Patella Oss"
+pc_oss$resid <- pc_oss$agey - pc_oss$xmean
+pc_oss$abs_resid <- abs(pc_oss$agey - pc_oss$xmean)
+
+manP2 <- read_csv("test-predictions/man_PM2_US_all_c_test_predictions.csv")
+manP2$model <- "Mandibular PM2"
+manP2$resid <- manP2$agey - manP2$xmean
+manP2$abs_resid <- abs(manP2$agey - manP2$xmean)
+
+maxM1 <- read_csv("test-predictions/max_M1_US_all_c_test_predictions.csv")
+maxM1$model <- "Maxillary M1"
+maxM1$resid <- maxM1$agey - maxM1$xmean
+maxM1$abs_resid <- abs(maxM1$agey - maxM1$xmean)
+
+fdl <- read_csv("test-predictions/FDL_US_all_c_test_predictions.csv")
+fdl$model <- "Femur Length"
+fdl$resid <- fdl$agey - fdl$xmean
+fdl$abs_resid <- abs(fdl$agey - fdl$xmean)
+
+hpef <- read_csv("test-predictions/HPE_EF_US_all_c_test_predictions.csv")
+hpef$model <- "Proximal Humerus EF"
+hpef$resid <- hpef$agey - hpef$xmean
+hpef$abs_resid <- abs(hpef$agey - hpef$xmean)
+
+tdef <- read_csv("test-predictions/TDE_EF_US_all_c_test_predictions.csv")
+tdef$model <- "Distal Tibia EF"
+tdef$resid <- tdef$agey - tdef$xmean
+tdef$abs_resid <- abs(tdef$agey - tdef$xmean)
+
+
+uni_models <- rbind(rdl, fdl, pc_oss, manP2, maxM1, hpef, tdef)
+
+```
+
+```{r fig-7-abs_resid, fig.width=10, fig.height=8}
+uni_models %>% 
+  filter(model %in% c("Radius Length","Patella Oss", 
+                      "Mandibular PM2", "Maxillary M1", "Proximal Humerus EF", "Distal Tibia EF")) %>% 
+  ggplot(aes(x=agey, y=abs_resid)) + 
+  geom_point(aes(shape=model), color="gray49", alpha=0.75, size=2.8) + 
+  stat_smooth(aes(lty=model, color=model), method="loess", lwd=2, se=F) + 
+  labs(x=age_lab, y="Absolute Residuals (years)", lty="Model", 
+       color="Model", shape="Model") + 
+  mytheme + theme(legend.title=element_blank(), 
+                  legend.text=element_text(size=14)) +
+  scale_y_continuous(limits=c(0,15), breaks=seq(0,15,by=5)) + 
+  scale_shape_manual(values=6:1) +
+  scale_linetype_manual(values=c(4,1,2,3,5,6)) +
+  scale_color_manual(values=npg_pal[1:6])
+
+```
+
+```{r fig-7-resid, fig.width=10, fig.height=8}
+uni_models %>% 
+  filter(model %in% c("Radius Length","Patella Oss", 
+                      "Mandibular PM2", "Maxillary M1", "Proximal Humerus EF", "Distal Tibia EF")) %>% 
+  ggplot(aes(x=agey, y=resid)) + 
+  geom_point(aes(shape=model), color="gray49", alpha=0.75, size=2.8) + 
+  stat_smooth(aes(lty=model, color=model), method="loess", lwd=2, se=F) + 
+  labs(x=age_lab, y="Residuals (years)", lty="Model", 
+       color="Model", shape="Model") + 
+  mytheme + theme(legend.title=element_blank(),
+                  legend.text=element_text(size=14)) +
+  scale_y_continuous(limits=c(-16,16), breaks=seq(-15,15,by=5)) + 
+  scale_shape_manual(values=6:1) +
+  scale_linetype_manual(values=c(4,1,2,3,5,6)) +
+  scale_color_manual(values=npg_pal[1:6])
+
+```
+
+# Figure 8 - Dental Development Ordinal CrI
+Data for Figure 9 are the combined point and ordinal credible interval (CrI) data housed in the *ci-tables* folder and were generated using `generate_ord_ci()`. `allTeeth` is a dataframe that contains data for all the dental variables.
+
+```{r allTeeth}
+man_C <- read_csv("ci-tables/ordinal_ci_US_all_c_man_C.csv")
+man_I1 <- read_csv("ci-tables/ordinal_ci_US_all_c_man_I1.csv")
+man_I2 <- read_csv("ci-tables/ordinal_ci_US_all_c_man_I2.csv")
+man_M1 <- read_csv("ci-tables/ordinal_ci_US_all_c_man_M1.csv")
+man_M2 <- read_csv("ci-tables/ordinal_ci_US_all_c_man_M2.csv")
+man_M3 <- read_csv("ci-tables/ordinal_ci_US_all_c_man_M3.csv")
+man_PM1 <- read_csv("ci-tables/ordinal_ci_US_all_c_man_PM1.csv")
+man_PM2 <- read_csv("ci-tables/ordinal_ci_US_all_c_man_PM2.csv")
+
+max_C <- read_csv("ci-tables/ordinal_ci_US_all_c_max_C.csv")
+max_I1 <- read_csv("ci-tables/ordinal_ci_US_all_c_max_I1.csv")
+max_I2 <- read_csv("ci-tables/ordinal_ci_US_all_c_max_I2.csv")
+max_M1 <- read_csv("ci-tables/ordinal_ci_US_all_c_max_M1.csv")
+max_M2 <- read_csv("ci-tables/ordinal_ci_US_all_c_max_M2.csv")
+max_M3 <- read_csv("ci-tables/ordinal_ci_US_all_c_max_M3.csv")
+max_PM1 <- read_csv("ci-tables/ordinal_ci_US_all_c_max_PM1.csv")
+max_PM2 <- read_csv("ci-tables/ordinal_ci_US_all_c_max_PM2.csv")
+
+man_C$variable <- "Canine"
+man_C$jaw <- "Mandibular"
+man_I1$variable <- "Central Incisor"
+man_I1$jaw <- "Mandibular"
+man_I2$variable <- "Lateral Incisor"
+man_I2$jaw <- "Mandibular"
+man_M1$variable <- "First Molar"
+man_M1$jaw <- "Mandibular"
+man_M2$variable <- "Second Molar"
+man_M2$jaw <- "Mandibular"
+man_M3$variable <- "Third Molar"
+man_M3$jaw <- "Mandibular"
+man_PM1$variable <- "First Premolar"
+man_PM1$jaw <- "Mandibular"
+man_PM2$variable <- "Second Premolar"
+man_PM2$jaw <- "Mandibular"
+
+max_C$variable <- "Canine"
+max_C$jaw <- "Maxillary"
+max_I1$variable <- "Central Incisor"
+max_I1$jaw <- "Maxillary"
+max_I2$variable <- "Lateral Incisor"
+max_I2$jaw <- "Maxillary"
+max_M1$variable <- "First Molar"
+max_M1$jaw <- "Maxillary"
+max_M2$variable <- "Second Molar"
+max_M2$jaw <- "Maxillary"
+max_M3$variable <- "Third Molar"
+max_M3$jaw <- "Maxillary"
+max_PM1$variable <- "First Premolar"
+max_PM1$jaw <- "Maxillary"
+max_PM2$variable <- "Second Premolar"
+max_PM2$jaw <- "Maxillary"
+
+allTeeth <- rbind(man_C, man_I1, man_I2, man_PM1, man_PM2, man_M1, man_M2, man_M3, max_C, max_I1, max_I2, max_C, max_PM1, max_PM2, max_M1, max_M2, max_M3)
+allTeeth$variable <- factor(allTeeth$variable)
+allTeeth$jaw <- factor(allTeeth$jaw)
+allTeeth$ord_stage <- car::recode(allTeeth$ord_stage,
+                                  "0='1';1='2';2='3';3='4';4='5';5='6';6='7';
+                                  7='8';8='9';9='10';10='11';11='12/13'")
+allTeeth$ord_stage <- factor(allTeeth$ord_stage,
+                             levels=c('1','2','3','4','5','6','7','8',
+                                      '9','10','11','12/13'))
+```
+
+```{r fig-8, fig.width=24, fig.height=36}
+ggplot(allTeeth) + 
+  geom_errorbar(aes(y=variable, xmin=lower95, xmax=upper95, color=jaw), 
+                lwd=2) + 
+  geom_point(aes(x=point_est, y=variable, color=jaw), size=3) + 
+  scale_y_discrete(limits = c("Third Molar","Second Molar", "First Molar", 
+                              "Second Premolar", "First Premolar", "Canine",
+                              "Lateral Incisor", "Central Incisor")) +
+  scale_color_manual(values=c("Mandibular"="black", "Maxillary"="#5f93a1")) +
+  facet_grid(ord_stage ~ .) + labs(x=age_lab, y="Ordinal Stages per Tooth") + 
+  theme_minimal() + theme(legend.title=element_blank(),
+                  strip.background=element_rect(fill="grey85"),
+                  strip.text=element_text(size=25),
+                  axis.text=element_text(size=25),
+                  axis.title=element_text(size=27),
+                  legend.text=element_text(size=27),
+                  panel.border=element_rect(fill=NA),
+                  panel.spacing.y=unit(0.75,"lines"),
+                  legend.position="top") + 
+  scale_x_continuous(breaks=seq(0,22,by=2))
+```
+
+# Figure 9 - Epiphyseal Fusion Ordinal CrI 4-Stage
+Data for Figure 10 are also housed in the *ci-tables* folder and were generated using `generate_ord_ci()`. `allEF` contains the point and 95% CrI for all epiphyseal fusion variables. 
+
+```{r allEF and ef_seven and c_df and n_df}
+fbde_ef <- read_csv("ci-tables/ordinal_ci_US_all_c_FBDE_EF.csv")
+fbpe_ef <- read_csv("ci-tables/ordinal_ci_US_all_c_FBPE_EF.csv")
+fde_ef <- read_csv("ci-tables/ordinal_ci_US_all_c_FDE_EF.csv")
+fgt_ef <- read_csv("ci-tables/ordinal_ci_US_all_c_FGT_EF.csv")
+flt_ef <- read_csv("ci-tables/ordinal_ci_US_all_c_FLT_EF.csv")
+fh_ef <- read_csv("ci-tables/ordinal_ci_US_all_c_FH_EF.csv")
+hde_ef <- read_csv("ci-tables/ordinal_ci_US_all_c_HDE_EF.csv")
+hme_ef <- read_csv("ci-tables/ordinal_ci_US_all_c_HME_EF.csv")
+hpe_ef <- read_csv("ci-tables/ordinal_ci_US_all_c_HPE_EF.csv")
+ic_ef <- read_csv("ci-tables/ordinal_ci_US_all_c_IC_EF.csv")
+ilis_ef <- read_csv("ci-tables/ordinal_ci_US_all_c_ILIS_EF.csv")
+ispr_ef <- read_csv("ci-tables/ordinal_ci_US_all_c_ISPR_EF.csv")
+rde_ef <- read_csv("ci-tables/ordinal_ci_US_all_c_RPE_EF.csv")
+rpe_ef <- read_csv("ci-tables/ordinal_ci_US_all_c_RDE_EF.csv")
+ude_ef <- read_csv("ci-tables/ordinal_ci_US_all_c_UDE_EF.csv")
+upe_ef <- read_csv("ci-tables/ordinal_ci_US_all_c_UPE_EF.csv")
+tde_ef <- read_csv("ci-tables/ordinal_ci_US_all_c_TDE_EF.csv")
+tpe_ef <- read_csv("ci-tables/ordinal_ci_US_all_c_TPE_EF.csv")
+fbde_ef_7 <- read_csv("ci-tables/ordinal_ci_US_all_FBDE_EF.csv")
+fbpe_ef_7 <- read_csv("ci-tables/ordinal_ci_US_all_FBPE_EF.csv")
+fde_ef_7 <- read_csv("ci-tables/ordinal_ci_US_all_FDE_EF.csv")
+fh_ef_7 <- read_csv("ci-tables/ordinal_ci_US_all_FH_EF.csv")
+hde_ef_7 <- read_csv("ci-tables/ordinal_ci_US_all_HDE_EF.csv")
+hpe_ef_7 <- read_csv("ci-tables/ordinal_ci_US_all_HPE_EF.csv")
+rde_ef_7 <- read_csv("ci-tables/ordinal_ci_US_all_RDE_EF.csv")
+rpe_ef_7 <- read_csv("ci-tables/ordinal_ci_US_all_RPE_EF.csv")
+tde_ef_7 <- read_csv("ci-tables/ordinal_ci_US_all_TDE_EF.csv")
+tpe_ef_7 <- read_csv("ci-tables/ordinal_ci_US_all_TPE_EF.csv")
+ude_ef_7 <- read_csv("ci-tables/ordinal_ci_US_all_UDE_EF.csv")
+upe_ef_7 <- read_csv("ci-tables/ordinal_ci_US_all_UPE_EF.csv")
+hpe_ef_F <- read_csv("ci-tables/ordinal_ci_US_all_c_HPE_EF_sex-F.csv")
+hpe_ef_M <- read_csv("ci-tables/ordinal_ci_US_all_c_HPE_EF_sex-M.csv")
+tpe_ef_F <- read_csv("ci-tables/ordinal_ci_US_all_c_TPE_EF_sex-F.csv")
+tpe_ef_M <- read_csv("ci-tables/ordinal_ci_US_all_c_TPE_EF_sex-M.csv")
+
+fbde_ef$variable <- "Distal Fibula"
+fbpe_ef$variable <- "Proximal Fibula"
+fde_ef$variable <- "Distal Femur"
+fgt_ef$variable <- "Greater Trochanter"
+flt_ef$variable <- "Lesser Trochanter"
+fh_ef$variable <- "Proximal Femur"
+hde_ef$variable <- "Distal Humerus"
+hme_ef$variable <- "Medial Epicondyle of the Humerus"
+hpe_ef$variable <- "Proximal Humerus"
+rpe_ef$variable <- "Proximal Radius"
+rde_ef$variable <- "Distal Radius"
+upe_ef$variable <- "Proximal Ulna"
+ude_ef$variable <- "Distal Ulna"
+tpe_ef$variable <- "Proximal Tibia"
+tde_ef$variable <- "Distal Tibia"
+ilis_ef$variable <- "Ilio-Ischium"
+ispr_ef$variable <- "Ischio-pubic Ramus"
+ic_ef$variable <- "Iliac Crest"
+fbde_ef_7$variable <- "Distal Fibula"
+fbpe_ef_7$variable <- "Proximal Fibula"
+fde_ef_7$variable <- "Distal Femur"
+fh_ef_7$variable <- "Proximal Femur"
+hde_ef_7$variable <- "Distal Humerus"
+hpe_ef_7$variable <- "Proximal Humerus"
+rde_ef_7$variable <- "Distal Radius"
+rpe_ef_7$variable <- "Proximal Radius"
+tde_ef_7$variable <- "Distal Tibia"
+tpe_ef_7$variable <- "Proximal Tibia"
+ude_ef_7$variable <- "Distal Ulna"
+upe_ef_7$variable <- "Proximal Ulna"
+hpe_ef_F$variable <- "Proximal Humerus"
+hpe_ef_M$variable <- "Proximal Humerus"
+tpe_ef_F$variable <- "Proximal Tibia"
+tpe_ef_M$variable <- "Proximal Tibia"
+
+fbde_ef$bone <- "Fibula"
+fbpe_ef$bone <- "Fibula"
+fde_ef$bone <- "Femur"
+fgt_ef$bone <- "Femur"
+flt_ef$bone <- "Femur"
+fh_ef$bone <- "Femur"
+hde_ef$bone <- "Humerus"
+hme_ef$bone <- "Humerus"
+hpe_ef$bone <- "Humerus"
+rpe_ef$bone <- "Radius"
+rde_ef$bone <- "Radius"
+upe_ef$bone <- "Ulna"
+ude_ef$bone <- "Ulna"
+tpe_ef$bone <- "Tibia"
+tde_ef$bone <- "Tibia"
+ilis_ef$bone <- "Os Coxa"
+ispr_ef$bone <- "Os Coxa"
+ic_ef$bone <- "Os Coxa"
+fbde_ef_7$bone <- "Fibula"
+fbpe_ef_7$bone <- "Fibula"
+fde_ef_7$bone <- "Femur"
+fh_ef_7$bone <- "Femur"
+hde_ef_7$bone <- "Humerus"
+hpe_ef_7$bone <- "Humerus"
+rde_ef_7$bone <- "Radius"
+rpe_ef_7$bone <- "Radius"
+tde_ef_7$bone <- "Tibia"
+tpe_ef_7$bone <- "Tibia"
+ude_ef_7$bone <- "Ulna"
+upe_ef_7$bone <- "Ulna"
+hpe_ef_F$bone <- "Humerus"
+hpe_ef_M$bone <- "Humerus"
+tpe_ef_F$bone <- "Tibia"
+tpe_ef_M$bone <- "Tibia"
+
+allEF <- rbind(fbde_ef, fbpe_ef, fde_ef, fgt_ef, flt_ef, fh_ef, hde_ef, 
+               hme_ef, hpe_ef, rpe_ef, rde_ef, upe_ef, ude_ef, tpe_ef, 
+               tde_ef, ilis_ef, ispr_ef, ic_ef)
+
+```
+
+```{r fig-9, fig.height=22}
+ggplot(allEF %>% filter(bone != "Os Coxa")) + 
+  geom_errorbar(aes(y=reorder(variable, point_est), 
+                    xmin=lower95, xmax=upper95, color=bone), lwd=2) + 
+  geom_point(aes(x=point_est, y=variable), size=3) + 
+  facet_grid(ord_stage ~ .) +
+  labs(x=age_lab, y="Ordinal Stages per Anatomical Site") + 
+  mytheme + theme(legend.position="top", legend.title = element_blank(),
+                  strip.background=element_rect(fill="grey85"),
+                  panel.border=element_rect(fill=NA),
+                  panel.spacing.y=unit(0.75,"lines")) + 
+  scale_x_continuous(breaks=seq(0,22,by=2)) + 
+  scale_color_manual(values=c("black","cyan","gold","deeppink","grey","purple"))
+```
+
+# Figure 10 - Epiphyseal Fusion Ordinal CI 7-Stage
+Data for Figure 11 are the point and 95% CrI for the proximal and distal epiphyseal fusion variables. 
+
+```{r ef_seven}
+ef_seven <- rbind(fbde_ef_7, fbpe_ef_7, fde_ef_7, fh_ef_7, hde_ef_7, hpe_ef_7,
+                  rpe_ef_7, rde_ef_7, upe_ef_7, ude_ef_7, tpe_ef_7, tde_ef_7)
+ef_seven$ord_stage <- car::recode(ef_seven$ord_stage,
+                                   "0='0';1='1';2='1/2';3='2';4='2/3';
+                                   5='3';6='4'")
+ef_seven$ord_stage <- factor(ef_seven$ord_stage, 
+                              levels=c('0','1','1/2','2','2/3','3','4'))
+```
+
+```{r fig-10, fig.height=26}
+ggplot(ef_seven) + 
+  geom_errorbar(aes(y=reorder(variable, point_est), 
+                    xmin=lower95, xmax=upper95, color=bone), lwd=2) + 
+  geom_point(aes(x=point_est, y=variable), size=3) + 
+  facet_grid(ord_stage ~ .) +
+  labs(x=age_lab, y="Ordinal Stages per Anatomical Site") + 
+  mytheme + theme(legend.position="top", legend.title = element_blank(),
+                  strip.background=element_rect(fill="grey85"),
+                  panel.border=element_rect(fill=NA),
+                  panel.spacing.y=unit(0.75,"lines")) + 
+  scale_x_continuous(breaks=seq(0,22,by=2)) + 
+  scale_color_manual(values=c("black","cyan","gold","deeppink","grey","purple"))
+```
+
+# Figure 11 - Collapsed and Expanded Comparison
+Data for Figure 12 contain the collapsed and uncollapsed (expanded) point and 95% CrI for the proximal and distal epiphyseal fusion variables. To make comparisons, the uncollapsed data stages describing fusion (1/2, 2, 2/3) are combined into a mean point estimate and the 95% CrI encompasses the minimum and maximum bounds from the three stages. 
+
+```{r c_df munge, eval=T}
+c_df <- allEF[c(grep("Proximal",allEF$variable),grep("Distal",allEF$variable)),]
+c_df$type <- "Collapsed"
+c_df$variable <- car::recode(c_df$variable,"'Distal Fibula'='FBDE_EF';
+                             'Proximal Fibula'='FBPE_EF';
+                             'Distal Femur'='FDE_EF';
+                             'Proximal Femur'='FH_EF';
+                             'Distal Humerus'='HDE_EF';
+                             'Proximal Humerus'='HPE_EF';
+                             'Distal Radius'='RDE_EF';
+                             'Proximal Radius'='RPE_EF';
+                             'Distal Tibia'='TDE_EF';
+                             'Proximal Tibia'='TPE_EF';
+                             'Distal Ulna'='UDE_EF';
+                             'Proximal Ulna'='UPE_EF'")
+```
+
+```{r n_df munge, eval=T}
+n_df0 <- ef_seven[c(grep("Proximal",ef_seven$variable),
+                   grep("Distal",ef_seven$variable)),]
+n_df0$type <- "Uncollapsed"
+n_df0$variable <- car::recode(n_df0$variable,"'Distal Fibula'='FBDE_EF';
+                             'Proximal Fibula'='FBPE_EF';
+                             'Distal Femur'='FDE_EF';
+                             'Proximal Femur'='FH_EF';
+                             'Distal Humerus'='HDE_EF';
+                             'Proximal Humerus'='HPE_EF';
+                             'Distal Radius'='RDE_EF';
+                             'Proximal Radius'='RPE_EF';
+                             'Distal Tibia'='TDE_EF';
+                             'Proximal Tibia'='TPE_EF';
+                             'Distal Ulna'='UDE_EF';
+                             'Proximal Ulna'='UPE_EF'")
+
+n_df <- data.frame(ord_stage=c_df$ord_stage)
+n_df$point_est <- c(n_df0$point_est[1:2],mean(n_df0$point_est[3:6]),
+                     n_df0$point_est[7:9],mean(n_df0$point_est[10:13]),
+                     n_df0$point_est[14:16],mean(n_df0$point_est[17:20]),
+                     n_df0$point_est[21:23],mean(n_df0$point_est[24:27]),
+                     n_df0$point_est[28:30],mean(n_df0$point_est[31:34]),
+                     n_df0$point_est[35:37],mean(n_df0$point_est[38:41]),
+                     n_df0$point_est[42:44],mean(n_df0$point_est[45:48]),
+                     n_df0$point_est[49:51],mean(n_df0$point_est[52:55]),
+                     n_df0$point_est[56:58],mean(n_df0$point_est[59:62]),
+                     n_df0$point_est[63:65],mean(n_df0$point_est[66:69]),
+                     n_df0$point_est[70:72],mean(n_df0$point_est[73:76]),
+                     n_df0$point_est[77:79],mean(n_df0$point_est[80:83]),
+                     n_df0$point_est[84])
+n_df$lower99 <- c(n_df0$lower99[1:2],mean(n_df0$lower99[3:6]),
+                     n_df0$lower99[7:9],mean(n_df0$lower99[10:13]),
+                     n_df0$lower99[14:16],mean(n_df0$lower99[17:20]),
+                     n_df0$lower99[21:23],mean(n_df0$lower99[24:27]),
+                     n_df0$lower99[28:30],mean(n_df0$lower99[31:34]),
+                     n_df0$lower99[35:37],mean(n_df0$lower99[38:41]),
+                     n_df0$lower99[42:44],mean(n_df0$lower99[45:48]),
+                     n_df0$lower99[49:51],mean(n_df0$lower99[52:55]),
+                     n_df0$lower99[56:58],mean(n_df0$lower99[59:62]),
+                     n_df0$lower99[63:65],mean(n_df0$lower99[66:69]),
+                     n_df0$lower99[70:72],mean(n_df0$lower99[73:76]),
+                     n_df0$lower99[77:79],mean(n_df0$lower99[80:83]),
+                     n_df0$lower99[84])
+n_df$lower95 <- c(n_df0$lower95[1:2],mean(n_df0$lower95[3:6]),
+                     n_df0$lower95[7:9],mean(n_df0$lower95[10:13]),
+                     n_df0$lower95[14:16],mean(n_df0$lower95[17:20]),
+                     n_df0$lower95[21:23],mean(n_df0$lower95[24:27]),
+                     n_df0$lower95[28:30],mean(n_df0$lower95[31:34]),
+                     n_df0$lower95[35:37],mean(n_df0$lower95[38:41]),
+                     n_df0$lower95[42:44],mean(n_df0$lower95[45:48]),
+                     n_df0$lower95[49:51],mean(n_df0$lower95[52:55]),
+                     n_df0$lower95[56:58],mean(n_df0$lower95[59:62]),
+                     n_df0$lower95[63:65],mean(n_df0$lower95[66:69]),
+                     n_df0$lower95[70:72],mean(n_df0$lower95[73:76]),
+                     n_df0$lower95[77:79],mean(n_df0$lower95[80:83]),
+                     n_df0$lower95[84])
+n_df$upper95 <- c(n_df0$upper95[1:2],mean(n_df0$upper95[3:6]),
+                     n_df0$upper95[7:9],mean(n_df0$upper95[10:13]),
+                     n_df0$upper95[14:16],mean(n_df0$upper95[17:20]),
+                     n_df0$upper95[21:23],mean(n_df0$upper95[24:27]),
+                     n_df0$upper95[28:30],mean(n_df0$upper95[31:34]),
+                     n_df0$upper95[35:37],mean(n_df0$upper95[38:41]),
+                     n_df0$upper95[42:44],mean(n_df0$upper95[45:48]),
+                     n_df0$upper95[49:51],mean(n_df0$upper95[52:55]),
+                     n_df0$upper95[56:58],mean(n_df0$upper95[59:62]),
+                     n_df0$upper95[63:65],mean(n_df0$upper95[66:69]),
+                     n_df0$upper95[70:72],mean(n_df0$upper95[73:76]),
+                     n_df0$upper95[77:79],mean(n_df0$upper95[80:83]),
+                     n_df0$upper95[84])
+n_df$upper99 <- c(n_df0$upper99[1:2],mean(n_df0$upper99[3:6]),
+                     n_df0$upper99[7:9],mean(n_df0$upper99[10:13]),
+                     n_df0$upper99[14:16],mean(n_df0$upper99[17:20]),
+                     n_df0$upper99[21:23],mean(n_df0$upper99[24:27]),
+                     n_df0$upper99[28:30],mean(n_df0$upper99[31:34]),
+                     n_df0$upper99[35:37],mean(n_df0$upper99[38:41]),
+                     n_df0$upper99[42:44],mean(n_df0$upper99[45:48]),
+                     n_df0$upper99[49:51],mean(n_df0$upper99[52:55]),
+                     n_df0$upper99[56:58],mean(n_df0$upper99[59:62]),
+                     n_df0$upper99[63:65],mean(n_df0$upper99[66:69]),
+                     n_df0$upper99[70:72],mean(n_df0$upper99[73:76]),
+                     n_df0$upper99[77:79],mean(n_df0$upper99[80:83]),
+                     n_df0$upper99[84])
+
+n_df$variable <- c_df$variable
+```
+
+```{r fig-11, fig.height=12, fig.width=12}
+ggplot(c_df) +
+ geom_linerange(aes(xmin=lower95, xmax=upper95,
+                    y=ord_stage), color="#4DBBD5FF", size=1) +
+ geom_point(aes(y=ord_stage, x=lower95, pch="filled", color="blue"), size=3) +
+ geom_point(aes(y=ord_stage, x=upper95, pch="filled", color="blue"), size=3) +
+ mytheme + facet_wrap(vars(variable)) +
+ geom_linerange(data=n_df,
+                aes(xmin=lower95, xmax=upper95, y=ord_stage),
+                color="black", lty="dashed", show.legend=F, size=1) +
+ geom_point(data=n_df,
+            aes(y=ord_stage, x=lower95, pch="open", color="black"), size=3) +
+ geom_point(data=n_df,
+            aes(y=ord_stage, x=upper95, pch="open", color="black"), size=3) +
+ scale_shape_manual(values=c("filled"=19, "open"=1),
+                    labels=c("4-Stage", "7-Stage")) +
+ scale_color_manual(values=c("blue"="#4DBBD5FF", "black"="black"),
+                    labels=c("4-Stage", "7-Stage")) +
+ theme(panel.border=element_rect(fill=NA)) +
+ labs(y="Ordinal Stage", x=age_lab,
+      shape=element_blank(), color=element_blank())
+
+```
+
+# Figure 12 - Conditional Dependent Long Bone and Dental Model Prediction Comparison
+Data for Figure 13, 14, and 15 include the test predictions from the conditionally dependent multivariate models. These test predictions are housed in the *test-predictions* folder and were generated using `multivariate_batch_calc()`.
+
+```{r all_cdep}
+cdep_18UC <- read_csv("test-predictions/cdep_model_US_eighteen_var_test_predictions.csv")
+cdep_lbs <- read_csv("test-predictions/cdep_model_US_lb_test_predictions.csv")
+cdep_lbs %<>% filter(!(SVAD_identifier %in% c("US_0390","US_0028")))
+
+cdep_ef_ossC <- read_csv("test-predictions/cdep_model_US_ef_oss_c_test_predictions.csv")
+cdep_ef_ossC %<>% filter(SVAD_identifier != "US_0856")
+
+cdep_pdC <- read_csv("test-predictions/cdep_model_US_prox_dist_c_test_predictions.csv")
+cdep_pdC %<>% filter(SVAD_identifier != "US_0914")
+
+cdep_dent <- read_csv("test-predictions/cdep_model_US_dent_test_predictions.csv")
+cdep_18C <- read_csv("test-predictions/cdep_model_US_eighteen_var_c_test_predictions.csv")
+
+cdep_18UC$model <- "C-Dep 18-Var Uncollapsed"
+cdep_lbs$model <- "C-Dep Long Bones"
+cdep_ef_ossC$model <- "C-Dep EF_Oss"
+cdep_pdC$model <- "C-Dep Prox-Dist"
+cdep_dent$model <- "C-Dep Dental"
+cdep_18C$model <- "C-Dep 18-Var Collapsed"
+
+cdep_18UC$abs_resid <- abs(cdep_18UC$agey - cdep_18UC$xmean)
+cdep_18C$abs_resid <- abs(cdep_18C$agey - cdep_18C$xmean)
+cdep_lbs$abs_resid <- abs(cdep_lbs$agey - cdep_lbs$xmean)
+cdep_dent$abs_resid <- abs(cdep_dent$agey - cdep_dent$xmean)
+cdep_pdC$abs_resid <- abs(cdep_pdC$agey - cdep_pdC$xmean)
+cdep_ef_ossC$abs_resid <- abs(cdep_ef_ossC$agey - cdep_ef_ossC$xmean)
+
+cdep_18UC$resid <- cdep_18UC$agey - cdep_18UC$xmean
+cdep_18C$resid <- cdep_18C$agey - cdep_18C$xmean
+cdep_lbs$resid <- cdep_lbs$agey - cdep_lbs$xmean
+cdep_pdC$resid <- cdep_pdC$agey - cdep_pdC$xmean
+cdep_ef_ossC$resid <- cdep_ef_ossC$agey - cdep_ef_ossC$xmean
+cdep_dent$resid <- cdep_dent$agey - cdep_dent$xmean
+
+all_cdep <- rbind(cdep_18UC,cdep_18C,cdep_lbs,cdep_pdC,cdep_ef_ossC,cdep_dent)
+
+```
+
+```{r fig-12, fig.height=8, fig.width=8}
+all_cdep %>% filter(model %in% c("C-Dep Long Bones","C-Dep Dental")) %>%
+  ggplot(aes(x=agey, color=model)) + 
+  geom_errorbar(aes(ymin=lower95, ymax=upper95, alpha=model), lwd=1.2) + 
+  geom_point(aes(y=xmean), size=1.5) + 
+  geom_abline(slope=1, intercept=0, color="red", linetype="dashed", lwd=1) +
+     scale_alpha_manual(values=c(1,0.8)) + 
+  labs(x="Known Age (years)", y="Predicted Age (years)", 
+       alpha="Model", color="Model") +
+  mytheme + scale_color_manual(values=c(npg_pal[6],"black")) + 
+     theme(legend.title=element_blank())
+```
+
+# Figure 13 – Absolute Residuals (top) and Residuals (bottom) Multivariate Conditionally Dependent (Collapsed)
+
+```{r fig-13-abs_resid, fig.width=10, fig.height=8}
+all_cdep %>% filter(model != "C-Dep 18-Var Uncollapsed") %>% 
+  ggplot(aes(x=agey, y=abs_resid, shape=model)) + 
+  geom_point(color="gray49", alpha=0.75, size=2.8) + 
+  stat_smooth(aes(lty=model, color=model), se=F, method="loess", lwd=2) + 
+  labs(x=age_lab, y="Absolute Residuals (years)", linetype="Model", 
+       color="Model", shape="Model") + mytheme + 
+  theme(legend.title=element_blank(),
+        legend.text=element_text(size=14)) + 
+  scale_y_continuous(limits=c(0,8), breaks=seq(0,8,by=2)) + 
+  scale_shape_manual(values=c(1,2,3,4,5), 
+                     labels=c("C-Dep 18-Var", "C-Dep Dental", 
+                              "C-Dep EF_Oss", "C-Dep Long Bones", 
+                              "C-Dep Prox-Dist")) + 
+  scale_linetype_manual(values=c(1,2,3,4,5), 
+                        labels=c("C-Dep 18-Var", "C-Dep Dental", 
+                                 "C-Dep EF_Oss", "C-Dep Long Bones", 
+                                 "C-Dep Prox-Dist")) + 
+  scale_color_manual(values=c("#0d322c","#1e7662","#a1dceb",
+                              "#ed192e","#28b79f"),
+                     labels=c("C-Dep 18-Var", "C-Dep Dental", 
+                                 "C-Dep EF_Oss", "C-Dep Long Bones", 
+                                 "C-Dep Prox-Dist"))
+
+```
+
+```{r fig-13-resid, fig.width=10, fig.height=8}
+all_cdep %>% filter(model != "C-Dep 18-Var Uncollapsed") %>% 
+  ggplot(aes(x=agey, y=resid, shape=model)) + 
+  geom_point(color="gray49", alpha=0.75, size=2.8) + 
+  stat_smooth(aes(lty=model, color=model), se=F, method="loess", lwd=2) + 
+  labs(x=age_lab, y="Residuals (years)", linetype="Model", 
+       color="Model", shape="Model") + mytheme +
+  theme(legend.title=element_blank(),
+        legend.text=element_text(size=14)) + 
+  scale_y_continuous(limits=c(-8,8), breaks=seq(-8,8,by=4)) + 
+  scale_shape_manual(values=c(1,2,3,4,5), 
+                     labels=c("C-Dep 18-Var", "C-Dep Dental", 
+                              "C-Dep EF_Oss", "C-Dep Long Bones", 
+                              "C-Dep Prox-Dist")) + 
+  scale_linetype_manual(values=c(1,2,3,4,5), 
+                        labels=c("C-Dep 18-Var", "C-Dep Dental", 
+                                 "C-Dep EF_Oss", "C-Dep Long Bones", 
+                                 "C-Dep Prox-Dist")) + 
+  scale_color_manual(values=c("#0d322c","#1e7662","#a1dceb",
+                              "#ed192e","#28b79f"),
+                     labels=c("C-Dep 18-Var", "C-Dep Dental", 
+                                 "C-Dep EF_Oss", "C-Dep Long Bones", 
+                                 "C-Dep Prox-Dist"))
+
+```
+
+# Figure 14 – Absolute Residuals (top) and Residuals (bottom), Univariate + Conditionally Dependent 18-variable Model
+A few univariate and multivariate models were chosen to compare between single- and multi-variable model performance. They are combined into a new dataframe, `uni_multi`.
+
+```{r uni_multi}
+maxM2 <- read_csv("test-predictions/max_M2_US_all_c_test_predictions.csv")
+maxM2$model <- "Max M2"
+maxM2$abs_resid <- abs(maxM2$agey - maxM2$xmean)
+maxM2$resid <- maxM2$agey - maxM2$xmean
+
+uni_multi <- rbind(cdep_18C, fdl, maxM2, maxM1, tdef, hpef)
+```
+
+```{r fig-14-abs_resid, fig.width=10, fig.height=8}
+uni_multi %>%
+ ggplot(aes(x=agey, y=abs_resid)) +
+ geom_point(aes(shape=model), color="gray49", alpha=0.75, size=2.8) +
+ stat_smooth(aes(lty=model, color=model), method="loess", lwd=2, se=F) +
+ labs(x=age_lab, y="Absolute Residuals (years)", lty="Model",
+      color="Model", shape="Model") + mytheme +
+ theme(legend.title=element_blank(),
+       legend.text=element_text(size=14)) +
+ scale_y_continuous(limits=c(0,10), breaks=seq(0,10,by=2)) +
+ scale_shape_manual(values=c(1,5,2,8,3,4),
+                    labels=c("C-Dep 18-Var","Proximal Humerus EF","Femur Length",
+                             "Max M2","Max M1","Distal Tibia EF")) +
+ scale_linetype_manual(values=c(1,5,2,6,3,4),
+                       labels=c("C-Dep 18-Var","Proximal Humerus EF","Femur Length",
+                             "Max M2","Max M1","Distal Tibia EF")) +
+ scale_color_manual(values=c("black","#ed192e","#1e7662",
+                             "#a61120","#28b79f","#a1dceb"),
+                    labels=c("C-Dep 18-Var","Proximal Humerus EF","Femur Length",
+                             "Max M2","Max M1","Distal Tibia EF"))
+
+```
+
+```{r fig-14-resid, fig.width=10, fig.height=8}
+uni_multi %>%
+ ggplot(aes(x=agey, y=resid)) +
+ geom_point(aes(shape=model), color="gray49", alpha=0.75, size=2.8) +
+ stat_smooth(aes(lty=model, color=model), method="loess", lwd=2, se=F) +
+ labs(x=age_lab, y="Residuals (years)", lty="Model",
+      color="Model", shape="Model") + mytheme +
+ theme(legend.title=element_blank(),
+       legend.text=element_text(size=14)) +
+ scale_y_continuous(limits=c(-10,10), breaks=seq(-10,10,by=5)) +
+ scale_shape_manual(values=c(1,5,2,8,3,4),
+                    labels=c("C-Dep 18-Var","Proximal Humerus EF","Femur Length",
+                             "Max M2","Max M1","Distal Tibia EF")) +
+ scale_linetype_manual(values=c(1,5,2,6,3,4),
+                       labels=c("C-Dep 18-Var","Proximal Humerus EF","Femur Length",
+                             "Max M2","Max M1","Distal Tibia EF")) +
+ scale_color_manual(values=c("black","#ed192e","#1e7662",
+                             "#a61120","#28b79f","#a1dceb"),
+                    labels=c("C-Dep 18-Var","Proximal Humerus EF","Femur Length",
+                             "Max M2","Max M1","Distal Tibia EF"))
+
+```
+
+# Figure 15 – KL-Div
+Data for Figure 16 contain the Kullback-Leibler Divergence results calulated using the script `kl_div.R`. 
+
+```{r kl-div-initial}
+xcalc <- seq(0,23,by=0.01)
+fprior <- readRDS("data/priorx.rds")
+US_0088 <- readRDS("data/US_0088.rds")
+known_age <- US_0088$agey
+```
+
+Next, because the posterior density distributions and kl-div values were stored in a list, they must be pulled out of said list for use:
+
+```{r kl-div-list}
+kl_list <- readRDS("data/US_88_list.rds")
+
+post_multi_cdep_c <- kl_list$post[[1]]
+post_multi_cindep_c <- kl_list$post[[2]]
+post_multi_cdep <- kl_list$post[[3]]
+post_multi_cindep <- kl_list$post[[4]]
+post_lb_cdep <- kl_list$post[[5]]
+post_lb_cindep <- kl_list$post[[6]]
+post_ef_oss_cdep <- kl_list$post[[7]]
+post_ef_oss_cindep <- kl_list$post[[8]]
+post_dent_cdep <- kl_list$post[[9]]
+post_dent_cindep <- kl_list$post[[10]]
+post_rdl_homo <- kl_list$post[[11]]
+post_rdl_hetero <- kl_list$post[[12]]
+post_fdl_homo <- kl_list$post[[13]]
+post_fdl_hetero <- kl_list$post[[14]]
+post_man_PM2_homo <- kl_list$post[[15]]
+post_man_PM2_hetero <- kl_list$post[[16]]
+post_pc_oss_homo <- kl_list$post[[17]]
+post_pc_oss_hetero <- kl_list$post[[18]]
+
+kl_div_multi_cdep_c <- kl_list$kl_div[[1]]
+kl_div_multi_cindep_c <- kl_list$kl_div[[2]]
+kl_div_multi_cdep <- kl_list$kl_div[[3]]
+kl_div_multi_cindep <- kl_list$kl_div[[4]]
+kl_div_lb_cdep <- kl_list$kl_div[[5]]
+kl_div_lb_cindep <- kl_list$kl_div[[6]]
+kl_div_ef_oss_cdep <- kl_list$kl_div[[7]]
+kl_div_ef_oss_cindep <- kl_list$kl_div[[8]]
+kl_div_dent_cdep <- kl_list$kl_div[[9]]
+kl_div_dent_cindep <- kl_list$kl_div[[10]]
+kl_div_rdl_homo <- kl_list$kl_div[[11]]
+kl_div_rdl_hetero <- kl_list$kl_div[[12]]
+kl_div_fdl_homo <- kl_list$kl_div[[13]]
+kl_div_fdl_hetero <- kl_list$kl_div[[14]]
+kl_div_man_PM2_homo <- kl_list$kl_div[[15]]
+kl_div_man_PM2_hetero <- kl_list$kl_div[[16]]
+kl_div_pc_oss_homo <- kl_list$kl_div[[17]]
+kl_div_pc_oss_hetero <- kl_list$kl_div[[18]]
+
+```
+
+```{r fig-15-a}
+data.frame(xcalc=xcalc, multi=post_multi_cdep_c$density,
+           lb=post_lb_cdep$density,
+           ef_oss=post_ef_oss_cdep$density,
+           dent=post_dent_cdep$density,
+           rdl=post_rdl_homo$density,
+           pc_oss=post_pc_oss_homo$density) %>% 
+  ggplot() + 
+  geom_line(aes(x=xcalc, y=multi, color="multi"), size=1) +
+  geom_line(aes(x=xcalc, y=lb, color="lb"), size=1) + 
+  geom_line(aes(x=xcalc, y=ef_oss, color="ef_oss"), size=1) +
+  geom_line(aes(x=xcalc, y=dent, color="dent"), size=1) +
+  geom_line(aes(x=xcalc, y=rdl, color="rdl"), lty="dashed", size=1) +
+  geom_line(aes(x=xcalc, y=pc_oss, color="pc_oss"), lty="dashed", size=1) +
+  mytheme + geom_vline(xintercept=known_age, color="black", size=1) +
+  scale_color_manual(values=c("multi"=npg_pal[1],
+                              "lb"=npg_pal[2],
+                              "ef_oss"=npg_pal[3],
+                              "dent"=npg_pal[4],
+                              "rdl"=npg_pal[5],
+                              "pc_oss"=npg_pal[6],
+                              "black"="black"),
+                     labels=c("18-Var / Dep",
+                              "Long Bones / Dep",
+                              "Epiphyseal Fusion / Dep",
+                              "Dental Development / Dep",
+                              "RDL / Homo",
+                              "PC_Oss / Homo",
+                              "Known Age")) + 
+  labs(x=age_lab, y="Density", 
+       color="Model", lty="Model") + 
+  theme(legend.position=c(0.8,0.8),
+        legend.background=element_rect(),
+        legend.title=element_blank())
+
+
+```
+
+```{r fig-15-b}
+data.frame(xcalc=xcalc,prior=fprior,
+           cdep=post_lb_cdep$density,
+           cindep=post_lb_cindep$density,
+           homo=post_rdl_homo$density,
+           hetero=post_rdl_hetero$density) %>% 
+  ggplot(aes(x=xcalc)) + 
+  geom_line(aes(y=cdep, color="cdep"), size=1) + 
+  geom_line(aes(y=cindep, color="cindep"), size=1) +
+  geom_line(aes(y=homo, color="homo"), size=1, lty="dashed") + 
+  geom_line(aes(y=hetero, color="hetero"), size=1, lty="dashed") + 
+  mytheme + geom_vline(xintercept=known_age, color="black", size=1) +
+  scale_color_manual(values=c("cdep"=npg_pal[1],
+                              "cindep"=npg_pal[2],
+                              "homo"=npg_pal[3],
+                              "hetero"=npg_pal[4],
+                              "black"="black"),
+                     labels=c("LB / C-Dep",
+                              "LB / C-Indep",
+                              "RDL / Homo",
+                              "RDL / Hetero",
+                              "Known Age")) + 
+  labs(x=age_lab, y="Density", 
+       color="Model", lty="Model") + 
+  theme(legend.position=c(0.8,0.8),
+        legend.background=element_rect(),
+        legend.title=element_blank())
+
+```
+
+```{r fig-15-c}
+data.frame(xcalc=xcalc,prior=fprior,
+           cdep=post_dent_cdep$density,
+           cindep=post_dent_cindep$density) %>% 
+  ggplot() + 
+  geom_line(aes(x=xcalc, y=prior, color="prior"), 
+              lty="dashed", size=1) +
+  geom_line(aes(x=xcalc, y=cdep, color="cdep"), size=1) + 
+  geom_line(aes(x=xcalc, y=cindep, color="cindep"), size=1) +
+  mytheme + geom_vline(xintercept=known_age, color="black", size=1) +
+  scale_color_manual(values=c("prior"=npg_pal[8],
+                              "cdep"=npg_pal[1],
+                              "cindep"=npg_pal[2],
+                              "black"="black"),
+                     labels=c("Prior",
+                              paste0("C-Dep (KL=",
+                                     round(kl_div_dent_cdep,2),")"),
+                              paste0("C-Indep (KL=",
+                                     round(kl_div_dent_cindep,2),")"),
+                              "Known Age")) + 
+  scale_linetype_manual(values=c("dashed"),labels=c("Prior")) + 
+  labs(x=age_lab, y="Density (Dental Development)", 
+       color="Model", lty="Model") + 
+  theme(legend.position=c(0.8,0.8),
+        legend.background=element_rect(),
+        legend.title=element_blank())
+  
+```
+
+```{r fig-15-d}
+data.frame(xcalc=xcalc,prior=fprior,
+           cdep=post_multi_cdep_c$density,
+           cindep=post_multi_cindep_c$density) %>% 
+  ggplot() + 
+  geom_line(aes(x=xcalc, y=prior, color="prior"), 
+              lty="dashed", size=1) +
+  geom_line(aes(x=xcalc, y=cdep, color="cdep"), size=1) + 
+  geom_line(aes(x=xcalc, y=cindep, color="cindep"), size=1) +
+  mytheme + geom_vline(xintercept=known_age, size=1) +
+  scale_color_manual(values=c("prior"=npg_pal[8], 
+                              "cdep"=npg_pal[1],
+                              "cindep"=npg_pal[2],
+                              "black"="black"),
+                     labels=c("Prior",
+                           paste0("C-Dep (KL=",
+                                  round(kl_div_multi_cdep_c,2),")"),
+                           paste0("C-Indep (KL=",
+                                  round(kl_div_multi_cindep_c,2),")"),
+                              "Known Age")) + 
+  scale_linetype_manual(values=c("dashed"),labels=c("Prior")) + 
+  labs(x=age_lab, y="Density (18-Var Collapsed)", 
+       color="Model", lty="Model") + 
+  theme(legend.position=c(0.8,0.8),
+        legend.background=element_rect(),
+        legend.title=element_blank())
+  
+```
+
+# Figure 16 - Comparisons of test predictions for PC_Oss, FBDE_EF, max_M2, and RDL
+
+```{r fig-16-pc_oss, fig.height=8, fig.width=8}
+ggplot(pc_oss) + 
+  geom_errorbar(aes(x=agey, ymin=lower95, ymax=upper95), color="black") + 
+  geom_point(aes(x=agey, y=xmode)) + 
+  geom_abline(slope=1, intercept=0, color="red", linetype="dashed") + 
+  labs(x="Known Age (years)", y="Predicted Age (years)") + 
+  mytheme
+```
+
+```{r fig-16-tdef, fig.height=8, fig.width=8}
+ggplot(tdef) + 
+  geom_errorbar(aes(x=agey, ymin=lower95, ymax=upper95), color="black") + 
+  geom_point(aes(x=agey, y=xmode)) + 
+  geom_abline(slope=1, intercept=0, color="red", linetype="dashed") + 
+  labs(x="Known Age (years)", y="Predicted Age (years)") + 
+  mytheme
+```
+
+```{r fig-16-maxM1, fig.height=8, fig.width=8}
+ggplot(maxM1) + 
+  geom_errorbar(aes(x=agey, ymin=lower95, ymax=upper95), color="black") + 
+  geom_point(aes(x=agey, y=xmode)) + 
+  geom_abline(slope=1, intercept=0, color="red", linetype="dashed") + 
+  labs(x="Known Age (years)", y="Predicted Age (years)") +
+  mytheme
+```
+
+```{r fig-16-rdl, fig.height=8, fig.width=8}
+ggplot(rdl) + 
+  geom_errorbar(aes(x=agey, ymin=lower95, ymax=upper95), color="black") + 
+  geom_point(aes(x=agey, y=xmode)) + 
+  geom_abline(slope=1, intercept=0, color="red", linetype="dashed") + 
+  labs(x="Known Age (years)", y="Predicted Age (years)") + 
+  mytheme
+```
+
+# Figure 17 - Sex-specific Ordinal CrI Comparison
+Data for Figure 18 contain the point and 95% CrI for HPE_EF and TPE_EF using pooled, female-only, and male-only datasets. 
+
+```{r sex_ord}
+sex_ord <- rbind(hpe_ef_7 %>% mutate(sex="Pooled"),
+                hpe_ef_F %>% mutate(sex="Female"),
+                hpe_ef_M %>% mutate(sex="Male"),
+                tpe_ef_7 %>% mutate(sex="Pooled"),
+                tpe_ef_F %>% mutate(sex="Female"),
+                tpe_ef_M %>% mutate(sex="Male"))
+
+sex_ord$ord_stage <- car::recode(sex_ord$ord_stage,
+                                "0='0';1='1';2='1/2';
+                                3='2';4='2/3';5='3';6='4'")
+```
+
+
+```{r fig-17, fig.width=18, fig.height=14}
+sex_ord %>%
+    ggplot(aes(y=sex)) +
+    geom_errorbar(aes(xmin=lower95, xmax=upper95, color=ord_stage), lwd=2) +
+    geom_point(aes(x=point_est), size=3) + mytheme +
+    facet_grid(ord_stage ~ variable) +
+    theme(legend.position="none",
+          strip.background.y=element_rect(fill="gray85")) +
+    scale_x_continuous(breaks=c(0,10,20)) +
+    scale_color_manual(values=npg_pal[1:7]) +
+    labs(x=age_lab, y="Sample")
+     
+```
