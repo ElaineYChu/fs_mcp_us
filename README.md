@@ -8,7 +8,7 @@ Estimating Age in Forensic Anthropology. Special Issue editors: Dr. Kanya Godde
 and Dr. Rebecca Taylor.
 
 To cut straight to the chase (i.e., running some code), see the section
-[Quicksteps](#quick) below, which does assume some familiarity with R and the command
+[Quicksteps](#quicksteps) below, which does assume some familiarity with R and the command
 line / terminal.
 
 The optimizations and other calculations that form the basis for the models and results presented in this
@@ -270,11 +270,13 @@ discussion purposes. This process yielded the following files:
 These files were used to generate **Figure 18** in the manuscript.
 
 
-# Quicksteps (command line / terminal is assumed) {#quick}
+# Quicksteps
+**NOTE:** command line / terminal is assumed  
+
 Clone the repository, change directory, and start R:
 
 ```
-git clone https://github.com/MichaelHoltonPrice/fs_mcp_us
+git clone https://github.com/ElaineYChu/fs_mcp_us
 cd fs_mcp_us
 R
 ```
